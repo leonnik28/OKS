@@ -6,8 +6,10 @@ namespace WinFormsApp1
 {
     public partial class MainForm : Form
     {
-        private SerialPort _sendPort;
-        private SerialPort _receivePort;
+        private SerialPort _sendPort1;
+        private SerialPort _sendPort2;
+        private SerialPort _receivePort1;
+        private SerialPort _receivePort2;
 
         public MainForm()
         {
@@ -17,28 +19,29 @@ namespace WinFormsApp1
 
         private void InitializeSerialPorts()
         {
-            // Автоматический выбор COM-портов
             string[] ports = SerialPort.GetPortNames();
-            if (ports.Length >= 2)
+            if (ports.Length >= 4)
             {
-                _sendPort = new SerialPort(ports[1], 9600);
-                _receivePort = new SerialPort(ports[2], 9600);
+                _sendPort1 = new SerialPort(ports[2], 9600);
+                _receivePort1 = new SerialPort(ports[3], 9600);
+                _sendPort2 = new SerialPort(ports[5], 9600);
+                _receivePort2 = new SerialPort(ports[4], 9600);
 
                 try
                 {
-                    _sendPort.DataReceived += new SerialDataReceivedEventHandler(SendPortDataReceived);
-                    _receivePort.DataReceived += new SerialDataReceivedEventHandler(ReceivePortDataReceived);
+                    _receivePort1.DataReceived += new SerialDataReceivedEventHandler(ReceivePort1DataReceived);
+                    _receivePort2.DataReceived += new SerialDataReceivedEventHandler(ReceivePort2DataReceived);
 
-                    _sendPort.Open();
-                    _receivePort.Open();
+                    _sendPort1.Open();
+                    _sendPort2.Open();
+                    _receivePort1.Open();
+                    _receivePort2.Open();
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Ошибка при открытии портов: {ex.Message}");
                     Application.Exit();
                 }
-
-                UpdateStatus();
             }
             else
             {
@@ -47,80 +50,102 @@ namespace WinFormsApp1
             }
 
             speedComboBox.SelectedIndex = 0;
-            portComboBox.Items.AddRange(ports);
+            portComboBox.Items.Add(_sendPort1.PortName + "->" + _receivePort1.PortName);
+            portComboBox.Items.Add(_sendPort2.PortName + "->" + _receivePort2.PortName);
             portComboBox.SelectedIndex = 0;
         }
 
-        private void SendPortDataReceived(object sender, SerialDataReceivedEventArgs e)
+        private void ReceivePort1DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             try
             {
-                string data = _sendPort.ReadExisting();
+                string data = _receivePort1.ReadExisting();
                 int byteCount = data.Length;
                 Invoke(new Action(() =>
                 {
                     outputTextBox.AppendText(data);
-                    UpdateStatus(byteCount);
-                    debugTextBox.AppendText($"Принято из {_sendPort.PortName}: {data}\n");
+                    UpdateStatus(_sendPort1, _receivePort1, byteCount);
+                    debugTextBox.AppendText($"Принято из {_receivePort1.PortName}: {data}\n");
                 }));
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при чтении данных из {_sendPort.PortName}: {ex.Message}");
+                MessageBox.Show($"Ошибка при чтении данных из {_receivePort1.PortName}: {ex.Message}");
             }
         }
 
-        private void ReceivePortDataReceived(object sender, SerialDataReceivedEventArgs e)
+        private void ReceivePort2DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             try
             {
-                string data = _receivePort.ReadExisting();
+                string data = _receivePort2.ReadExisting();
                 int byteCount = data.Length;
                 Invoke(new Action(() =>
                 {
                     outputTextBox.AppendText(data);
-                    UpdateStatus(byteCount);
-                    debugTextBox.AppendText($"Принято из {_receivePort.PortName}: {data}\n");
+                    UpdateStatus(_sendPort2, _receivePort2, byteCount);
+                    debugTextBox.AppendText($"Принято из {_receivePort2.PortName}: {data}\n");
                 }));
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Ошибка при чтении данных из {_receivePort.PortName}: {ex.Message}");
+                MessageBox.Show($"Ошибка при чтении данных из {_receivePort2.PortName}: {ex.Message}");
             }
         }
 
-        private void UpdateStatus(int byteCount = 0)
+        private void UpdateStatus(SerialPort sendPort, SerialPort receivePort, int byteCount = 0)
         {
-            statusTextBox.Text = $"Порт для передачи: {_sendPort.PortName}\nПорт для приема: {_receivePort.PortName}\nКоличество байт в последней порции: {byteCount}";
+            statusTextBox.Text = $"Порт для передачи: {sendPort.PortName}\nПорт для приема: {receivePort.PortName}\nКоличество байт в последней порции: {byteCount}";
         }
 
         private void SendButtonClick(object sender, EventArgs e)
         {
             string data = inputTextBox.Text;
-            try
+            SerialPort sendPort = null;
+            SerialPort receivePort = null;
+
+            if (portComboBox.SelectedIndex == 0)
             {
-                _sendPort.Write(data);
-                outputTextBox.AppendText(data);
-                debugTextBox.AppendText($"Отправлено из {_sendPort.PortName} в {_receivePort.PortName} со скоростью {_sendPort.BaudRate} бод: {data}\n");
-                inputTextBox.Clear();
+                sendPort = _sendPort1;
+                receivePort = _receivePort1;
             }
-            catch (Exception ex)
+            else if (portComboBox.SelectedIndex == 1)
             {
-                MessageBox.Show($"Ошибка при отправке данных: {ex.Message}");
+                sendPort = _sendPort2;
+                receivePort = _receivePort2;
+            }
+
+            if (sendPort != null && receivePort != null)
+            {
+                try
+                {
+                    sendPort.Write(data);
+                    outputTextBox.AppendText(data);
+                    debugTextBox.AppendText($"Отправлено из {sendPort.PortName} в {receivePort.PortName} со скоростью {sendPort.BaudRate} бод: {data}\n");
+                    inputTextBox.Clear();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Ошибка при отправке данных: {ex.Message}");
+                }
             }
         }
 
         private void MainFormFormClosing(object sender, FormClosingEventArgs e)
         {
-            _sendPort.Close();
-            _receivePort.Close();
+            _sendPort1.Close();
+            _sendPort2.Close();
+            _receivePort1.Close();
+            _receivePort2.Close();
         }
 
         private void SpeedComboBoxSelectedIndexChanged(object sender, EventArgs e)
         {
             int baudRate = int.Parse(speedComboBox.SelectedItem.ToString());
-            _sendPort.BaudRate = baudRate;
-            _receivePort.BaudRate = baudRate;
+            _sendPort1.BaudRate = baudRate;
+            _sendPort2.BaudRate = baudRate;
+            _receivePort1.BaudRate = baudRate;
+            _receivePort2.BaudRate = baudRate;
         }
     }
 }
